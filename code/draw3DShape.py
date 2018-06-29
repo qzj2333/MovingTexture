@@ -9,7 +9,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 # data members
-shape    = "spline_64_5"
+shape    = "cyl"
 fileName = "data/" + shape + ".smfd"
 allPoints     = {}
 allPtsList    = []
@@ -30,6 +30,7 @@ moveDir   = True  # True: dir1 / False: dir2
 save      = True
 plot      = "move"   # rest / move
 
+
 def drawTriangle(ax):
         global trianglesList
         for t in trianglesList:
@@ -40,7 +41,7 @@ def drawTriangle(ax):
                 py = [p0.py, p1.py, p2.py]
                 pz = [p0.pz, p1.pz, p2.pz]
                 trianglePts = [zip(px, py, pz)]
-                triangle = Poly3DCollection(trianglePts, alpha=0.1)
+                triangle = Poly3DCollection(trianglePts, alpha=0.5)
                 triangle.set_color("grey")
                 triangle.set_edgecolor('grey')
                 ax.add_collection3d(triangle)
@@ -116,9 +117,12 @@ def setLim(ax):
                 ax.set_ylim(-2.5, 2.5)
                 ax.set_zlim(-1.5, 1.5)
         elif shape == "cyl":
-                ax.set_xlim(-2.5, 2)
-                ax.set_ylim(-1, 2.5)
-                ax.set_zlim(-0.5, 3.5)
+                #ax.set_xlim(-2.5, 2)
+                #ax.set_ylim(-1, 2.5)
+                #ax.set_zlim(-0.5, 3.5)
+                ax.set_xlim(1, 2)
+                ax.set_ylim(1, 2)
+                ax.set_zlim(1, 2)
         elif shape == "sad":
                 ax.set_xlim(-6, 6)
                 ax.set_ylim(-1, 6)
@@ -140,9 +144,12 @@ def setLim(ax):
                 ax.set_ylim(0, 8)
                 ax.set_zlim(0.5, 1)
         elif shape == "spline_64_5":
-                ax.set_xlim(0, 6)
-                ax.set_ylim(0, 8)
-                ax.set_zlim(0.5, 1.1)
+                #ax.set_xlim(0, 6)
+                #ax.set_ylim(0, 8)
+                #ax.set_zlim(0.5, 1.1)
+                ax.set_xlim(0.5, 1.5)
+                ax.set_ylim(4, 5)
+                ax.set_zlim(0.9, 1.0)
 
 def restPlot():
         global pointsList
@@ -182,6 +189,7 @@ def movingDir():
                 #plt.show()
                 plt.close()
         return plt
+
 
 # ----- Test -----
 nCluster = generatePts(length, percentLimit, fixLength, fileName, allPoints, allPtsList, pointsList, trianglesList, moveSpeed)

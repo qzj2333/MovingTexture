@@ -7,7 +7,7 @@ from pyglet.gl     import *
 from pyglet.window import *
 
 # data members
-shape    = "spline_25"
+shape    = "cyl"
 fileName = "data/" + shape + ".smfd"
 allPoints     = {}
 allPtsList    = []
@@ -26,16 +26,15 @@ ty = 0.
 xAngle = 0.
 yAngle = 0.
 zAngle = 0.
-zoom = 1.
+zoom   = 1.
 action = None
 drawShape = "tri"
+location = "local"
 
-points    = False
-surface   = True
 dir1      = True
 dir2      = False
 fixLength = True
-moveDir   = "1"   # 1 / 2 / None 
+moveDir   = None   # 1 / 2 / None 
 save      = True
 loadMat   = True
 move      = True
@@ -98,7 +97,6 @@ def setup():
     glViewport(0, 0, winW, winH)
 
 def center():
-    global zoom
     # normalize object to fit window
     # translate center to origin
     x = 0
@@ -107,40 +105,32 @@ def center():
     if shape == "ell":
         y = -0.5
         z = -3
-        zoom = 0.3
     elif shape == "cyl":
         y = -1
         z = -2.5
-        zoom = 0.1
     elif shape == "sad":
         y = -0.5
         z = -3
-        zoom = 0.1
     elif shape == "spline_16":
         x = -0.5
         y = -0.5
         z = -3
-        zoom = 0.2
     elif shape == "spline_25":
         x = -1
         y = -1
         z = -3
-        zoom = 0.2
     elif shape == "spline_64_1":
         x = -0.5
         y = -0.7
         z = -2.5
-        zoom = 0.2
     elif shape == "spline_64_2":
         x = -0.5
         y = -0.7
         z = -2.5
-        zoom = 0.1
     elif shape == "spline_64_5":
         x = -0.5
         y = -0.7
         z = -2.5
-        zoom = 0.1
     glTranslatef(x/2.0, y/2.0, z/2.0)
     
 #@win.event
@@ -170,7 +160,7 @@ def on_draw():
             pointsList = appendList(pointsList, ptList)
             pyglet.image.get_buffer_manager().get_color_buffer().save(shape+str(i).zfill(3)+'.png')
     else:
-        pointsList = clusterPts(pointsList, allPoints, nCluster)
+        #pointsList = clusterPts(pointsList, allPoints, nCluster)
         draw()
         
         
@@ -180,7 +170,7 @@ def draw():
     on_resize()
     center()
     if loadMat:
-        f = file("data/"+shape+".txt", "r")
+        f = file("data/"+location+"/"+shape+".txt", "r")
         for i, line in enumerate(f.readlines()):
             transformMat[i] = float(line)
         glLoadMatrixf(transformMat)
@@ -199,12 +189,12 @@ def draw():
     # color
     #glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, yellow)
     #glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, yellow)
-    glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, greens)
+    #glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, greens)
     #glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS, high_shine)
-
+    
+    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, greens)
     # triangle surface
     for t in trianglesList:
-        # Draw some stuff
         glBegin(gDraw)
         p0 = t.t0
         p1 = t.t1
@@ -228,6 +218,7 @@ def draw():
 
     # principal direction lines
     if dir1:
+        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, yellow)
         for p in pointsList.values():
             glBegin(GL_LINES)
             glVertex3f(p.px,p.py,p.pz)
@@ -242,6 +233,7 @@ def draw():
                 newPtList[pxNew, pyNew, pzNew] = newPt
                
     if dir2:
+        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, purple)
         for p in pointsList:
             glBegin(GL_LINES)
             glVertex3f(p.px,p.py,p.pz)
@@ -274,18 +266,22 @@ def on_mouse_press(x, y, button, modifiers):
     global action
     if (modifiers & key.MOD_SHIFT) and (modifiers & key.MOD_CTRL):
         action = "tran"
+    elif (modifiers & key.MOD_NUMLOCK) and (modifiers & key.MOD_CAPSLOCK):
+        action = "zoomOut"
     elif modifiers & key.MOD_SHIFT:
         action = "RotX"
     elif modifiers & key.MOD_CTRL:
         action = "RotY"
     elif modifiers & key.MOD_CAPSLOCK:
         action = "RotZ"
+    elif modifiers & key.MOD_NUMLOCK:
+        action = "zoomIn"
     else:
         action = None
 
 @win.event
 def on_mouse_drag(x, y, dx, dy, buttons, modifiers):
-    global action, xAngle, yAngle, zAngle, tx, ty
+    global action, xAngle, yAngle, zAngle, tx, ty, zoom
     fx = dx / 20.
     fy = dy / 20.
     if action == "RotX":
@@ -295,8 +291,12 @@ def on_mouse_drag(x, y, dx, dy, buttons, modifiers):
     elif action == "RotZ":
         zAngle += np.sqrt(fx**2 + fy**2)
     elif action == "tran":
-        tx += fx / 15.
-        ty += fy / 15.
+        tx += fy / 15.
+        ty += fx / 15.
+    elif action == "zoomIn":
+        zoom = np.sqrt(fx**2 + fy**2)
+    elif action == "zoomOut":
+        zoom = -np.sqrt(fx**2 + fy**2)
         
 def main():
     global win, length, percentLimit, fixLength, fileName, allPoints, pointsList, trianglesList, moveSpeed, nCluster, clustersList
