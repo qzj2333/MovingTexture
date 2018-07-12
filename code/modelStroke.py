@@ -103,6 +103,7 @@ def on_key_press(symbol, modifiers):
         
 @win.event
 def on_draw():
+    '''
     # step version
     global isMove, count, sprite, drawPrev
 
@@ -116,24 +117,19 @@ def on_draw():
         moveForward(strokesList)
         draw()
         # save current frame
-        pyglet.image.get_buffer_manager().get_color_buffer().save(shape+str(count).zfill(3)+'.png')
+        #pyglet.image.get_buffer_manager().get_color_buffer().save(shape+str(count).zfill(3)+'.png')
 
         count += 1
         isMove = False # pause current frame
-
+    '''
     # auto version
-    '''
     global nStep, shape
-    if isMove:
-        for i in range(0, nStep):
-            print i
-            draw()
-            pyglet.image.get_buffer_manager().get_color_buffer().save(shape+str(i).zfill(3)+'.png')
-    else:
+    for i in range(0, nStep):
+        print i
         draw()
-        pyglet.image.get_buffer_manager().get_color_buffer().save(shape+'.png')
-    '''
-     
+        moveForward(strokesList)
+        pyglet.image.get_buffer_manager().get_color_buffer().save(shape+str(i).zfill(3)+'.png')
+
 def draw():
     global xAngle, yAngle, zAngle, zoom, shape
 

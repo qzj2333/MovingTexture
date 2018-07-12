@@ -39,12 +39,13 @@ def initializePtList(allPoints, percentLimit):
             pointsList[loc] = p
     return pointsList
 
-def generateNewPts(percentLimit, allPoints):
+def generateNewPts(percentLimit, pointsList, allPoints):
     ptList = {}
     for p in allPoints.values():
         percent = uniform(0, 1)
         if percent <= percentLimit:
             x, y, z = p.initial
+            p.reset()
             ptList[x, y, z] = p
     return ptList
 
@@ -53,7 +54,8 @@ def findAllEndPt(pointsList, allPoints):
     for loc, p in pointsList.iteritems():
         end = findEndPt(p, allPoints)
         x, y, z = end.initial
-        newPointsList[x, y, z] = end  
+        newPointsList[x, y, z] = end
+        end.reset()
     return newPointsList
 
 def findEndPt(currPt, allPoints):
@@ -173,7 +175,7 @@ def on_draw():
             draw()
             
             pointsList = findAllEndPt(pointsList, allPoints)
-            ptList     = generateNewPts(percentLimit, allPoints)
+            ptList     = generateNewPts(percentLimit, pointsList, allPoints)
             pointsList = appendList(pointsList, ptList)
             
             pyglet.image.get_buffer_manager().get_color_buffer().save(shape+str(i).zfill(3)+'.png')

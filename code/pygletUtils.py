@@ -15,15 +15,15 @@ winW = 800
 winH = 800
 win = pyglet.window.Window(winW, winH)
 
-shape    = "spline_16"
+shape    = "spline_0"
 fileName = "data/" + shape + ".smfd"
 count = 0
-percentLimit = 0.5
+percentLimit = 0.3
 moveSpeed    = 0.15     # make it relate to triangle size
-length       = 0.15     # fixed length of each curvature
-nStep        = 20       # numer of steps/iterations/images generate to make gif
+length       = 0.7     # fixed length of each curvature
+nStep        = 50       # numer of steps/iterations/images generate to make gif
 drawShape    = "tri"
-location     = "global" #"pres/oblique"
+location     = "pres/oblique"
 fixLength    = True
 save         = True
 loadMat      = True
@@ -298,8 +298,7 @@ class Point:
         #self.thick   = 1
         #self.cluster = None
         self.initial = np.array([x, y, z])
-        self.start   = np.array([x, y, z])
-        self.end     = self.start+self.d1#np.array([x+d1x, y+d1y, z+d1z])
+        self.reset()
 
     def drawSegment(self):
         glBegin(GL_LINES)
@@ -317,6 +316,11 @@ class Point:
         self.start = np.array([x, y, z])
         self.end = self.start + self.d1
         return x, y, z
+
+    def reset(self):
+        x, y, z = self.initial
+        self.start   = np.array([x, y, z])
+        self.end     = self.start+self.d1
 
 class Triangle:
     def __init__(self, p1, p2, p3):
