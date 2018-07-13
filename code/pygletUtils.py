@@ -15,15 +15,15 @@ winW = 800
 winH = 800
 win = pyglet.window.Window(winW, winH)
 
-shape    = "spline_0"
+shape    = "cyl4"
 fileName = "data/" + shape + ".smfd"
 count = 0
-percentLimit = 0.3
+percentLimit = 0.5
 moveSpeed    = 0.15     # make it relate to triangle size
-length       = 0.7     # fixed length of each curvature
+length       = 0.15     # fixed length of each curvature
 nStep        = 50       # numer of steps/iterations/images generate to make gif
 drawShape    = "tri"
-location     = "pres/oblique"
+location     = "local"  #"pres/oblique"
 fixLength    = True
 save         = True
 loadMat      = True
@@ -91,15 +91,15 @@ def setup():
     glEnable(GL_DEPTH_TEST) # 3D drawing work when sth. in front of sth. else
     glViewport(0, 0, winW, winH)
 
-def resize():
+def resize(minX, maxX, minY, maxY, minZ, maxZ):
     #global minX, maxX, minY, maxY, minZ, maxZ
     #Clear color and depth buffers
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
     glMatrixMode(GL_PROJECTION)    # camera perspective
     glLoadIdentity() # reset camera
-    gluPerspective(60.0, 1.*winW/winH, 0.1, 50.)
-    #glOrtho(-maxX-1, maxX+1, -maxY-1, maxY+1, -100, 100)   #minZ-1, maxZ+1)
+    #gluPerspective(60.0, 1.*winW/winH, 0.1, 50.)
+    glOrtho(-maxX-1, maxX+1, -maxY-1, maxY+1, -100, 100)   #minZ-1, maxZ+1)
     
     glMatrixMode(GL_MODELVIEW)
     glLoadIdentity() # reset camera
@@ -143,7 +143,7 @@ def generatePts(length, percentLimit, fixLength, fileName, moveSpeed=1):
     trianglesList = {}
     triList       = {} 
 
-    '''
+    
     minCur1 = float('inf')
     minCur2 = float('inf')
     maxCur1 = 0
@@ -154,13 +154,13 @@ def generatePts(length, percentLimit, fixLength, fileName, moveSpeed=1):
     maxX = -float('inf')
     maxY = -float('inf')
     maxZ = -float('inf')
-    '''
+    
     for line in f.readlines():
         if line.startswith("v"):
             # v
             v, x, y, z = line.split()
             x, y, z = str2float(x, y, z)
-            '''
+            
             if x < minX:
                 minX = x
             if x > maxX:
@@ -173,7 +173,7 @@ def generatePts(length, percentLimit, fixLength, fileName, moveSpeed=1):
                 minZ = z
             if z > maxZ:
                 maxZ = z
-            '''
+            
                 
         elif line.startswith("D"):
             # D
@@ -234,7 +234,7 @@ def generatePts(length, percentLimit, fixLength, fileName, moveSpeed=1):
             triList[p2].append(tri)
             
     f.close()
-    return trianglesList, allPoints, triList
+    return minX, maxX, minY, maxY, minZ, maxZ, trianglesList, allPoints, triList
 
 # ----- helper function -----
 def str2float(x, y, z):

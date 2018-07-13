@@ -1,8 +1,9 @@
 # modelStroke.py
 # draw appropriate 3D shape using pyglet
 
-from random      import uniform
-from pygletUtils import *
+from random          import uniform
+from pygletUtils     import *
+from sklearn.cluster import AgglomerativeClustering
 
 # color
 #glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, yellow)
@@ -11,20 +12,22 @@ from pygletUtils import *
 #glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS, high_shine)
 
 # data members
-maxNumCP  = 100      # max number of control points/steps in a stroke
-maxNumTri = 50       # max number of triangles one stroke can pass
-minDist   = moveSpeed / 10   # min distance any two strokes can have between
+maxNumCP  = 50      # max number of control points/steps in a stroke
+maxNumTri = 5       # max number of triangles one stroke can pass
+minDist   = moveSpeed / 8.   # min distance any two strokes can have between
 trianglesList = {}
 
 '''
 minWidth = 1
 maxWidth = 5
+'''
 minX = float('inf')
 minY = float('inf')
 minZ = float('inf')
 maxX = -float('inf')
 maxY = -float('inf')
 maxZ = -float('inf')
+'''
 minCur1  = float('inf')
 minCur2  = float('inf')
 maxCur1  = 0
@@ -32,7 +35,7 @@ maxCur2  = 0
 '''
 
 def adjustTrans():
-    global tx, ty, zoom, shape
+    global tx, ty, shape
     if shape == "ell":
         glTranslatef(0, ty, tx)
     elif shape == "cyl":
@@ -97,30 +100,46 @@ def on_key_press(symbol, modifiers):
     elif symbol == key.P:   # get next frame
         isMove = True
     elif symbol == key.L:   # get previous frame
-        if count > 0:   # if count = 0: draw first image
-            count -= 1
-            drawPrev = True
-        
+        #if count > 0:   # if count = 0: draw first image
+        #    count -= 1
+        drawPrev = True
+    elif symbol == key.R:
+        clearClockEvent()
+    elif symbol == key.PERIOD:
+        clearClockEvent()
+        pyglet.clock.schedule(autoDrawForward)
+    elif symbol == key.COMMA:
+        clearClockEvent()
+        pyglet.clock.schedule(autoDrawBackward)
+
+def autoDrawForward(dt=None):
+    moveForward(strokesList)
+    draw()
+
+def autoDrawBackward(dt=None):
+    moveBackward(strokesList)
+    draw()
+
+def clearClockEvent():
+    pyglet.clock.unschedule(autoDrawForward)
+    pyglet.clock.unschedule(autoDrawBackward)
+     
 @win.event
 def on_draw():
-    '''
     # step version
     global isMove, count, sprite, drawPrev
-
+    
     if drawPrev:    # did not save backward image right now
         moveBackward(strokesList)
         drawPrev = False
-
-    draw()
-
-    while isMove: # initially isMove = false
+    elif isMove:
         moveForward(strokesList)
-        draw()
         # save current frame
         #pyglet.image.get_buffer_manager().get_color_buffer().save(shape+str(count).zfill(3)+'.png')
-
-        count += 1
-        isMove = False # pause current frame
+        #count += 1
+        isMove = False
+    draw()
+    
     '''
     # auto version
     global nStep, shape
@@ -129,12 +148,10 @@ def on_draw():
         draw()
         moveForward(strokesList)
         pyglet.image.get_buffer_manager().get_color_buffer().save(shape+str(i).zfill(3)+'.png')
-
+    '''
 def draw():
-    global xAngle, yAngle, zAngle, zoom, shape
-
-    
-    resize()
+    global xAngle, yAngle, zAngle, zoom, shape, minX, maxX, minY, maxY, minZ, maxZ
+    resize(minX, maxX, minY, maxY, minZ, maxZ)
     if loadMat:
         f = file("data/"+location+"/"+shape+".txt", "r")
         for i, line in enumerate(f.readlines()):
@@ -154,7 +171,6 @@ def draw():
     glFlush()
 
 def drawDir():
-    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, yellow)
     for s in strokesList:
         s.drawSegment()
 
@@ -165,7 +181,10 @@ def initializeStrokes(trianglesList, percentLimit):
         percent = uniform(0, 1)
         if percent <= percentLimit:
             x, y, z = c
-            s = Stroke(x, y, z, trianglesList[c])
+            
+            colorNum = np.random.rand(1,3)[0]
+            color = vec(colorNum[0], colorNum[1], colorNum[2])
+            s = Stroke(x, y, z, trianglesList[c], c=color)
             strokesList.append(s)
     return strokesList
 
@@ -219,6 +238,25 @@ def generateStroke(strokesList, triList, maxNumTri, maxNumCP, minDist, moveSpeed
                         tri.addCP(np.array([x, y, z]))
                         nActive += 1
 
+def clusterStrokes(strokesList, nCluster):
+    clustersList = {}
+    data = np.zeros((1, 3))
+    tempList = {}
+    for s in strokesList:
+            loc = s.middlePoint()
+            tempList[loc[0], loc[1], loc[2]] = s
+            data = np.append(data, [[loc[0], loc[1], loc[2]]], axis=0)
+    data = data[1:]
+    clustering = AgglomerativeClustering(n_clusters=nCluster, affinity='euclidean', linkage='ward')
+    clusters = clustering.fit(data)
+    for i, l in enumerate(clusters.labels_):
+            clustersList[l]= data[i, :]
+    newList = []
+    for loc in clustersList.values():
+        s = tempList[loc[0], loc[1], loc[2]]
+        newList.append(s)
+    return newList
+
 def findNextTri(p1, p2, p3, currTri, triList, curr):
     tri = checkNeighborTri(p1, triList, curr)
     if tri == None:
@@ -239,7 +277,7 @@ def checkNeighborTri(p, triList, curr):
 
 def moveForward(strokesList):
     for s in strokesList:
-        s.updateSegment()
+        s.stepForwardSegment()
 
 def moveBackward(strokesList):
     for s in strokesList:
@@ -267,8 +305,9 @@ def computePD(pointsList):
        
 # ---------- class ----------
 class Stroke:
-    def __init__(self, x, y, z, tri):
+    def __init__(self, x, y, z, tri, c=yellow):
         self.initial   = np.array([x, y, z])
+        self.color     = c
         self.done      = False
         self.triChange = False
         
@@ -287,30 +326,41 @@ class Stroke:
     def deleteLastTri(self):
         del self.tris[-1]
 
+    def middlePoint(self):
+        middleIndex = len(self.cps) / 2
+        return self.cps[middleIndex]
+
+    def resetSegmentIndex(self):
+        self.startIndex = 0
+        self.endIndex   = min( len(self.cps)/3, 10 )
+        
     # do this after cps list is completed
     def initializeSegmentIndex(self):
-        self.startIndex = 0
-        self.endIndex   = min( len(self.cps)/3, 7 )
+        self.resetSegmentIndex()
+        self.diff = self.endIndex - self.startIndex
 
-    def updateSegment(self):
+    def stepForwardSegment(self):
         self.endIndex += 1
         
         if self.endIndex < len(self.cps):
             self.startIndex += 1
         else:
-            self.initializeSegmentIndex()
+            self.resetSegmentIndex()
 
     def stepBackSegment(self):
         self.startIndex -= 1
+        
         if self.startIndex >= 0:
             self.endIndex -= 1
         else:
-            self.initializeSegmentIndex()
+            self.endIndex = len(self.cps) - 1
+            self.startIndex = self.endIndex - self.diff
 
     def drawSegment(self):
         i = self.startIndex
         f = self.endIndex
-
+        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, self.color)
+        
         while i < f: 
             iniP = self.cps[i]
             finP = self.cps[i+1]
@@ -321,17 +371,25 @@ class Stroke:
             i += 1
 
 # ---------- test ----------  
-trianglesList, allPoints, triList = generatePts(length, percentLimit, fixLength, fileName, moveSpeed)
+minX, maxX, minY, maxY, minZ, maxZ, trianglesList, allPoints, triList = generatePts(length, percentLimit, fixLength, fileName, moveSpeed)
+print "0"
 strokesList = initializeStrokes(trianglesList, percentLimit)
+print "1"
 computePD(allPoints)    # continus PD
-
+print "2"
 generateStroke(strokesList, triList, maxNumTri, maxNumCP, minDist, moveSpeed)
+print "3"
 for s in strokesList:
     s.initializeSegmentIndex() 
-
+print "4"
 #ptThick(minCur1, maxCur1, minWidth, maxWidth, direction, pointsList)
-
+nCluster = len(strokesList) / 10
+print len(strokesList)
+strokesList = clusterStrokes(strokesList, nCluster)
+print len(strokesList)
 setup()
+dt = pyglet.clock.tick()    # setup clock
+print "5"
 pyglet.app.run()
 
 #for t in trianglesList.values():
