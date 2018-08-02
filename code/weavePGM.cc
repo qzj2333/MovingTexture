@@ -4,6 +4,11 @@
  *has SCL * SCL size.
  */
 
+// argument line example: data/0_0_precipitation data/0_0_tmp data/0_0_tmp data/0_0_precipitation
+// need put data folder under same folder as this file
+// after generate all ppm file, terminal command line for convert output to png:
+// convert 2_4.ppm 2_4.png; convert 2_0.ppm 2_0.png; convert 0_1.ppm 0_1.png; convert 0_2.ppm 0_2.png; convert 0_3.ppm 0_3.png; convert 0_4.ppm 0_4.png; convert 1_4.ppm 1_4.png; convert 1_1.ppm 1_1.png; convert 1_0.ppm 1_0.png; convert 0_0.ppm 0_0.png
+
 #include <fstream>
 #include <iostream>
 #include <sstream>
