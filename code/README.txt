@@ -1,4 +1,7 @@
-For model.py
+Documation for model.py
+model.py is a program loads a 3D model(vertices, principal direction for vertices and triangle
+surfaces), use pyglet to display such model with moving texture (follows 1st principal direction)
+created: August, 2018
 
 - data members:
 variables that can not be changed is listed in model.py. following are the variables that can be
@@ -28,6 +31,7 @@ changed:
 		   False --> yellow for all pd line, purple for all strokes
 -- loadMat: see "About save/load transform matrix" below
 -- loadPoints: see "About save/load points file" below
+-- loadPre: see "About save/load pre-generate infomation" below
 -- drawDots: True --> draw a dot on every point in pointsList (every picked point will draw pd line)
 	              used to check the location of picked points (since when loadPoints == False,
 	              points are randomly picked)
@@ -50,14 +54,33 @@ Save:
 2. if want, set drawDots == True so that able to see all locations of all points that will be
    automatically generated (not necessary, saving progress still work if drawDots == False)
 3. Program automatically random generate "percentLimit" amount of points and save it 
-   into the file ____Points.txt where ___ is the 3D model name user choose. 
-4. File will temp. save under same location as where model.py located
+   into the file ____.txt where ___ is the 3D model name ("shape") user choose. 
+4. File will temp. save under data/points/temp/ where data folder is same location as model.py
 5. If user satisfied with points' choosing (as seen from the dots draw on the frame), move 
-   ___Points.txt to data/points folder
+   ___.txt from temp folder to formal folder (both under points folder)
 Load: 
-set loadPoint == True, program will load ____Points.txt from data/points
-* if file that tring to load does not exist, program will throw some IO error exception
-* if load points, then "percentLimit" and "ptLength" will not effect the program
+1. set loadPoint == True, program will load ____.txt from data/points/formal first where ___ is the
+"shape" parameter
+2. if such file does not exist, will load ___.txt from data/points/temp
+3. if file does not exist from both places, program will throw IO error exception
+*  if load points, then "percentLimit" and "ptLength" will not effect the program
+
+About save/load pre-generate file:
+Save: 
+1. set loadPre == False
+2. Program automatically random generate all pre-generate information based on specified data
+   members and save it into the file ____.txt where ___ is the 3D model name ("shape") user 
+   choose. 
+4. File will temp. save under data/prepare/temp/ where data folder is same location as model.py
+5. If user satisfied with current information, move ___.txt from "temp" folder to "formal" folder 
+   (both under points folder)
+Load: 
+1. set loadPre == True, program will load ____.txt from data/prepare/formal first where ___ is 
+   the "shape" parameter
+2. if such file does not exist, will load ___.txt from data/prepare/temp
+3. if file does not exist from both places, program will throw IO error exception
+*  if load pre-generate information, then only "shape", "save", and "drawDots" parameter will 
+   effect the program
 
 About save/load transform matrix:
 Save:
@@ -69,7 +92,7 @@ Save:
    choose, move the txt file to data/____(global or local)
 Load:
 set loadMat = True and location = "global" or "local"
-* if file that tring to load does not exist, program will throw some IO error exception
+* if file that tring to load does not exist, program will throw IO error exception
 
 About key-press:
 S: print & save to file: "shape".txt

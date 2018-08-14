@@ -1,6 +1,7 @@
 # model.py
 # draw appropriate 3D shape using pyglet
-
+import random
+import os.path
 import numpy as np
 from random import uniform, randint
 from pyglet.gl     import *
@@ -14,7 +15,7 @@ from pyglet.window import *
 
 # ---------- variables that can be changed ----------
 shape         = "spline_16" # 3D model name (all model appear in data file)
-percentLimit  = 0.05        # percent of dir lines that show on every frame
+percentLimit  = 1.       # percent of dir lines that show on every frame
 clusterDepth  = 1           # (need >0) for cluster stroke: number of triangles from center of every cluster
 #moveSpeedDen = 200         # effect only when fixLength == False: increase will shorter the distance between control points
 #lengthDen    = 35          # effect only when fixLength == True:  increase will shorter the distance between control points
@@ -22,17 +23,18 @@ useLength     = "triangle"  # triangle / xyzRange use to compute moveSpeed and l
 location      = "global"    # translation model read file: pres/oblique/global/local
 fixLength     = True        # T: dir line has same length; F: dir line depends on curvature read from data file 
 isCluster     = False       # T: cluster BOTH strokes and pd lines based on clusterDepth; F: not cluster BOTH strokes and pd lines
-save          = True        # switch for save frames
+save          = False       # switch for save frames
+loadPre       = True        # T: load pre-generate information from data/prepare/temp or formal/"shape".txt; F: generate info before draw
 loadMat       = False       # load translation model (must save translation model first)
 # ----- pt related -----
 ptLength      = 10          # number steps of a pt will go
-loadPoints    = False       # T: load points from data/points/"shape"Points.txt; F: random generate percentLimit amount of points and automatically save them to "shape"Points.txt
+loadPoints    = False       # T: load points from data/points/temp or formal/"shape".txt; F: random generate percentLimit amount of points and automatically save them to "shape"Points.txt
 randomColorP  = False       # random color switch for points
-drawDots      = True       # T: draw a dot on every picked points; F: no dots drawing
+drawDots      = False       # T: draw a dot on every picked points; F: no dots drawing
 # ----- stroke related -----
 minNumCP      = 2           # min number of control points/steps in a stroke
-maxNumCP      = 40          # max number of control points/steps in a stroke
-minDistDen    = 4           # effect the distance between 1st and last of cps at each stroke, increase will shorter the distance/increase number of total strokes 
+maxNumCP      = 50          # max number of control points/steps in a stroke
+minDistDen    = 10           # effect the distance between 1st and last of cps at each stroke, increase will shorter the distance/increase number of total strokes 
 randomColorS  = False       # random color switch for stroke
 
 # ---------- global variables that do not change ----------
@@ -207,18 +209,11 @@ def on_key_press(symbol, modifiers):
         ty -= 0.5
     elif symbol == key.P: 
         isMove = True
-    #elif symbol == key.L:
-    #    #if count > 0:   # if count = 0: draw first image
-    #    #    count -= 1
-    #    drawPrev = True
     elif symbol == key.R:
         clearClockEvent()
     elif symbol == key.PERIOD:
         clearClockEvent()
         pyglet.clock.schedule(autoDrawForward)
-    #elif symbol == key.COMMA:
-    #    clearClockEvent()
-    #    pyglet.clock.schedule(autoDrawBackward)
     elif symbol == key.M:
         clearClockEvent()
         pyglet.clock.schedule(autoDrawPt)
@@ -236,6 +231,100 @@ def on_key_press(symbol, modifiers):
 
 
 # ---------- prepare function ----------
+def savePrepare(trianglesList, pointsList, strokesList):
+    f = file("data/prepare/temp/"+shape+".txt", "w")   # 0 based
+    print >> f, "precentLimit %d" %percentLimit
+    print >> f, "cluster %s %d" %(isCluster, clusterDepth)
+    print >> f, "fixLength %s" %fixLength
+    print >> f, "pcp %d scp %d" %(ptLength, maxNumCP)
+    print >> f, "randomColor S %s P %s" %(randomColorP, randomColorS)
+    print >> f, "%f %f %f %f %f %f" %(minX, maxX, minY, maxY, minZ, maxZ)
+
+    #print >> f, "trianglesList"
+    for t in trianglesList:
+        nx, ny, nz = t.norm
+        print >> f, "t %f %f %f" %(nx, ny, nz)    # normal
+        for p in t.vertices:
+            x, y, z = p.initial
+            print >> f, "%f %f %f" %(x, y, z) # position for each vertex
+
+    #print >> f, "pointsList"
+    for p in pointsList:
+        print >> f, "p %d" %len(p.cps)  # p length of cps
+        r, g, b = p.color
+        print >> f, "%f %f %f" %(r, g, b) # color
+        for cp in p.cps:
+            x, y, z = cp
+            print >> f, "%f %f %f" %(x, y, z)   # cp location
+            
+    #print >> f, "strokesList"
+    for s in strokesList:
+        print >> f, "s %d" %len(s.cps)  # s length of cps
+        r, g, b = s.color
+        print >> f, "%f %f %f" %(r, g, b) # color
+        for cp in s.cps:
+            x, y, z = cp
+            print >> f, "%f %f %f" %(x, y, z)   # cp location
+    f.close()
+
+def loadPrepare():
+    if os.path.exists("data/prepare/formal/"+shape+".txt"):
+        f = file("data/prepare/formal/"+shape+".txt", "r")
+    else:
+        f = file("data/prepare/temp/"+shape+".txt", "r")
+    # throw first five lines
+    for i in range(0, 5):
+        f.readline()
+    trianglesList = []
+    pointsList = []
+    strokesList = []
+
+    line = f.readline()
+    minX, maxX, minY, maxY, minZ, maxZ = line.split()
+    minX, maxX, minY = str2float(minX, maxX, minY)
+    maxY, minZ, maxZ = str2float(maxY, minZ, maxZ)
+    
+    line = f.readline()
+    while line.strip() != '':   # not reach the end of line
+        if line.startswith("t"):
+            t, nx, ny, nz = line.split()
+            nx, ny, nz = str2float(nx, ny, nz)
+            tri = SimpleTriangle(nx, ny, nz)
+            for i in range(0, 3):
+                line = f.readline()
+                x, y, z = line.split()
+                x, y, z = str2float(x, y, z)
+                tri.addLoc(x, y, z)
+            trianglesList.append(tri)
+                
+        elif line.startswith("p"):
+            p, n = line.split()
+            n = int(n)
+            r, g, b = f.readline().split()
+            r, g, b = str2float(r, g, b)
+            currP = SimplePS(r, g, b)
+            for i in range(0, n):
+                x, y, z = f.readline().split()
+                x, y, z = str2float(x, y, z)
+                currP.addCP(x, y, z)
+            pointsList.append(currP)
+            
+        elif line.startswith("s"):
+            s, n = line.split()
+            n = int(n)
+            r, g, b = f.readline().split()
+            r, g, b = str2float(r, g, b)
+            currS = SimplePS(r, g, b)
+            for i in range(0, n):
+                x, y, z = f.readline().split()
+                x, y, z = str2float(x, y, z)
+                currS.addCP(x, y, z)
+            strokesList.append(currS)
+        else:
+            break
+        line = f.readline()
+    return trianglesList, pointsList, strokesList, minX, maxX, minY, maxY, minZ, maxZ
+            
 # read data from file and output:
 # min/maxX/Y/Z: min/max of X&Y&Z among all points location
 # allPoints: loc --> Point obj for all points from data
@@ -351,8 +440,8 @@ def computeLength(minX, maxX, minY, maxY, minZ, maxZ, trianglesList):
     elif useLength == "triangle":
         minD, maxD = computeTriangleSideLength(trianglesList)
         diff = maxD - minD
-        moveSpeed = diff / 25   # moveSpeedDen
-        length = diff / 10      # lengthDen
+        moveSpeed = diff / 15   # moveSpeedDen
+        length = diff / 15      # lengthDen
     return moveSpeed, length
 
 # get rid of short strokes
@@ -394,8 +483,12 @@ def computePD(allPoints):
         #reference = ppd
 
 def resetPts(pointsList):
-    for p in pointsList:
-        p.done = False
+    if isinstance(pointsList, list):
+        for p in pointsList:
+            p.done = False
+    else:
+        for p in pointsList.values():
+            p.done = False
 
 # ----- for points -----
 # generate pointsList from allPoints (percentLimit% of allPoints --> pointsList)
@@ -403,7 +496,9 @@ def resetPts(pointsList):
 # pointsList: points that will draw pd lines
 def initializePtList(allPtsList, percentLimit):
     pointsList = []
-    f = file(shape+"Points.txt", "w")   # 0 based
+
+    # auto. save in the file
+    f = file("data/points/temp/"+shape+".txt", "w")   # 0 based
     for i, p in enumerate(allPtsList):
         percent = uniform(0, 1)
         if percent <= percentLimit:
@@ -415,7 +510,10 @@ def initializePtList(allPtsList, percentLimit):
 # generate pointsList based on indices from the loading file and allPtsList which contains all points
 def loadPts(allPtsList):
     pointsList = []
-    f = file(shape+"Points.txt", "r")
+    if os.path.exists("data/points/formal/"+shape+".txt"):
+        f = file("data/points/formal/"+shape+".txt", "r")
+    else:
+        f = file("data/points/temp/"+shape+".txt", "r")
     for line in f.readlines():
         i = int(line)
         pointsList.append(allPtsList[i])
@@ -458,7 +556,7 @@ def clusterOneDepthP(p, triList, pointsList, color, depth):
             p1, p2, p3 = t.vertices
             for p in t.vertices:
                 if not p.done:
-                    p.color = color
+                    #p.color = color
                     clusterList.add(p)
                     clusterList.update(clusterOneDepth(p, triList, pointsList, color, depth-1))
                     p.done = True
@@ -670,16 +768,8 @@ def checkNeighborTri(p, triList, curr):
 def adjustStroke(strokesList):
     tempList = []
     for s in strokesList:
-        if len(s.cps) >= 3:
+        if len(s.cps) >= 2:
             tempList.append(s)
-        '''
-        if len(s.cps) == maxNumCP + 1:
-            s.resizeCP()
-        x1, y1, z1 = s.cps[0]
-        x2, y2, z2 = s.cps[-1]
-        if len(s.cps) >= minNumCP and distance(x1, x2, y1, y2, z1, z2) > minDist:
-            tempList.append(s)
-        '''
     return tempList
 
 # cluster strokes by cluster near triangles 
@@ -687,13 +777,36 @@ def clusterStrokes(pointsList, triList):
     resetPts(allPoints)
     colorUsed   = {}
     clusterList = {}
-    for p in pointsList.values():
-        if not p.done:
-            if p in triList.keys():
-                clusterList[p] = clusterP(p, triList, pointsList, colorUsed)
-                p.done = True
-            else:
-                p.done = True
+    # --------------
+    # start by random pick one point from pointsList dictionary
+    loc, p1 = random.choice(list(pointsList.items()))
+    while p1 != None:
+        if p1 in triList.keys():
+            clusterList[p1] = clusterP(p1, triList, pointsList, colorUsed)
+            p1.done = True
+            x1, y1, z1 = p1.initial
+            maxDist = 0
+            p1 = None
+            for p2 in pointsList.values():
+                if not p2.done:
+                    x2, y2, z2 = p2.initial
+                    dist = distance(x1, x2, y1, y2, z1, z2)
+                    if maxDist < dist:
+                        maxDist = dist
+                        p1 = p2
+        else:
+            p1.done = True
+            while p1.done:
+                loc, p1 = random.choice(list(pointsList.items()))
+        
+    # -------------
+    #for p in pointsList.values():
+    #    if not p.done:
+    #        if p in triList.keys():
+    #            clusterList[p] = clusterP(p, triList, pointsList, colorUsed)
+    #            p.done = True
+    #        else:
+    #            p.done = True
     for c, v in clusterList.iteritems():
         print c, len(v)
     return clusterList
@@ -709,9 +822,11 @@ def clusterP(p, triList, pointsList, colorUsed):
     colorUsed[colorNum[0], colorNum[1], colorNum[2]] = color
     return clusterOneDepth(p, triList, pointsList, color, clusterDepth)
 
+
 # help function of above: complete one depth/edge/circle
 def clusterOneDepth(p, triList, pointsList, color, depth):
     clusterList = set()
+    returnP = None
     if depth > 0:
         triangles = triList[p]
         for t in triangles:
@@ -730,10 +845,9 @@ def clusterOneDepth(p, triList, pointsList, color, depth):
 # and generate the strokesList
 def clusterPickStroke(clusterList, triList):
     strokesList = []
-    for k, v in clusterList.iteritems():    # middle point --> all triangles around it
+    for k, tris in clusterList.iteritems():    # center point --> all triangles around it
         mDist = float('inf')
         tri = None
-        tris = triList[k]
         x1, y1, z1 = k.initial
         for t in tris:
             x2, y2, z2 = t.centroid
@@ -741,8 +855,8 @@ def clusterPickStroke(clusterList, triList):
             if dist < mDist:
                 mDist = dist
                 tri = t
+        '''    
         # pick the stroke that has longest segment (most number of cps) for each cluster
-        '''
         for t in v: 
             if t.stroke != None and len(t.stroke.cps) > maxLen:
                 maxLen = len(t.stroke.cps)
@@ -750,6 +864,15 @@ def clusterPickStroke(clusterList, triList):
         '''
         s = initializeStroke(tri)
         strokesList.append(s)
+
+    '''
+    # for testing color coded clusters
+    for k, v in clusterList.iteritems():
+        for t in v:
+            s = initializeStroke(t)
+            s.color = t.color
+            strokesList.append(s)
+    '''
     return strokesList
 
 # for some triangles that does not belong to any clusters:
@@ -912,10 +1035,18 @@ def drawTriSurface(trianglesList):
         glBegin(gDraw)
         x, y, z = -t.norm
         glNormal3f(x, y, z)
-
-        x1, y1, z1 = t.vertices[0].initial
-        x2, y2, z2 = t.vertices[1].initial
-        x3, y3, z3 = t.vertices[2].initial
+        if t.vertices != None:
+            x1, y1, z1 = t.vertices[0].initial
+            x2, y2, z2 = t.vertices[1].initial
+            x3, y3, z3 = t.vertices[2].initial
+            #print x1, x2, x3, y1, y2, y3, z1, z2, z3
+            #break
+        else:
+            x1, y1, z1 = t.locations[0]
+            x2, y2, z2 = t.locations[1]
+            x3, y3, z3 = t.locations[2]
+            #print x1, x2, x3, y1, y2, y3, z1, z2, z3
+            #break
         
         glVertex3f(x1, y1, z1)
         glVertex3f(x2, y2, z2)
@@ -938,11 +1069,11 @@ def drawDirPt(pointsList):
         p.drawSegment()
 
 # ----- helper function -----
-def set2dir(ptSet):
-    ptDir = {}
+def set2list(ptSet):
+    ptDir = []
     for p in ptSet:
         x, y, z = p.initial
-        ptDir[x, y, z] = p
+        ptDir.append(p)
     return ptDir
 
 # input 3 strings and output their corresponding float numbers
@@ -1004,8 +1135,7 @@ class Point:
         self.cps = []
         self.addCP(self.initial)
         self.done    = False    # is clustered or not
-        #self.reset()
-        self.resetSegmentIndex()
+        self.initializeSegmentIndex()
 
     # copy and return current point
     def copy(self):
@@ -1057,15 +1187,9 @@ class Point:
             self.startIndex += 2
     
     # set segment back to its initial location
-    def resetSegmentIndex(self):
+    def initializeSegmentIndex(self):
         self.startIndex = 0
         self.endIndex   = 1 #len(self.cps) / 4
-    
-    # set segment back to its initial location
-    def reset(self):
-        x, y, z = self.initial
-        self.start   = np.array([x, y, z])
-        self.end     = self.start + self.d1
 
 class Triangle:
     def __init__(self, p1, p2, p3):
@@ -1201,6 +1325,7 @@ class Stroke:
         self.addCP(np.array([x, y, z]))
         self.tris = []
         self.addTri(tri)
+        self.initializeSegmentIndex()
 
     # copy and return current stroke
     def copy(self):
@@ -1210,7 +1335,7 @@ class Stroke:
             copyStroke.addCP(cp)
         for t in self.tris[1:]:
             copyStroke.addTri(t)
-        copyStroke.resetSegmentIndex()
+        copyStroke.initializeSegmentIndex()
         return copyStroke
 
     # add input point p into current stroke's cps list
@@ -1242,16 +1367,10 @@ class Stroke:
         middleIndex = len(self.cps) / 2
         return self.cps[middleIndex]
 
-    # set segment back to its initial location
-    def resetSegmentIndex(self):
-        self.startIndex = 0
-        self.endIndex   = 2 #len(self.cps) / 4
-
-    
     # first time set current stroke's start, end and calculate diff
-    def initializeSegmentIndex(self):   # do this after cps list is completed
-        self.resetSegmentIndex()
-        #self.diff = int(self.endIndex - self.startIndex)
+    def initializeSegmentIndex(self): 
+        self.startIndex = 0
+        self.endIndex   = 2
 
     # move current stroke one step forward
     def stepForwardSegment(self):
@@ -1259,8 +1378,6 @@ class Stroke:
         
         if self.endIndex < len(self.cps):
             self.startIndex += 1
-        #else:
-        #    self.resetSegmentIndex()
 
     '''
     # move current stroke one step backward
@@ -1290,46 +1407,97 @@ class Stroke:
             
             i += 1
 
-# ---------- test ----------  
-minX, maxX, minY, maxY, minZ, maxZ, trianglesList, triList, allPoints, allPtsList = generatePts(fileName, randomColorP)
-print len(trianglesList)
-moveSpeed, length = computeLength(minX, maxX, minY, maxY, minZ, maxZ, trianglesList)
-computePtLength(allPoints)
-computePD(allPoints)    # continus PD
-print "0"
-# ----- points -----
-if loadPoints:
-    pointsList = loadPts(allPtsList)
-else:
-    pointsList = initializePtList(allPtsList, percentLimit)
-print len(pointsList)
-if isCluster:
-    pointsList = clusterPts(allPoints, triList)
-    pointsList = set2dir(pointsList)
-resetPts(pointsList)
-print "1"
+# following 2 classes are used for pre-generate
+class SimpleTriangle:
+    def __init__(self, nx, ny, nz):
+        self.norm = np.array((nx, ny, nz))
+        self.locations = []
+        self.vertices = None    # use to distingush Triangle & simpleTriangle at drawTriSurface
 
-generatePtCP(pointsList, allPoints, triList, ptLength)
-print "2"
+    def addLoc(self, x, y, z):
+        loc = np.array((x, y, z))
+        self.locations.append(loc)
+
+class SimplePS: # point or stroke
+    def __init__(self, r, g, b):
+        self.cps = []
+        self.color = vec(r, g, b)
+        self.initializeSegmentIndex()
+
+    def addCP(self, x, y, z):
+        p = np.array((x, y, z))
+        self.cps.append(p)
+
+    def copy(self):
+        r, g, b = self.color
+        copyPS = SimplePS(r, g, b)
+        for cp in self.cps:
+            x, y, z = cp
+            copyPS.addCP(x, y, z)
+        return copyPS
+
+    def drawSegment(self):
+        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, self.color)
+        glBegin(GL_LINES)
+        ix, iy, iz = self.cps[self.startIndex]
+        fx, fy, fz = self.cps[self.endIndex]
+        glVertex3f(ix, iy, iz)
+        glVertex3f(fx, fy, fz)
+        glEnd()
+
+    def initializeSegmentIndex(self):
+        self.startIndex = 0
+        self.endIndex   = 1
+
+    def stepForwardSegment(self):
+        self.endIndex += 2
+        if self.endIndex < len(self.cps):
+            self.startIndex += 2
+
+# ---------- test ----------
+if loadPre: # load pre-generating file from previous
+    trianglesList, pointsList, strokesList, minX, maxX, minY, maxY, minZ, maxZ = loadPrepare()
+    print "load finish", len(trianglesList), len(pointsList), len(strokesList)
+else:   # generate 
+    minX, maxX, minY, maxY, minZ, maxZ, trianglesList, triList, allPoints, allPtsList = generatePts(fileName, randomColorP)
+    print len(trianglesList)
+    moveSpeed, length = computeLength(minX, maxX, minY, maxY, minZ, maxZ, trianglesList)
+    computePtLength(allPoints)
+    computePD(allPoints)    # continus PD
+    print "Prepre compute done"
+    # ----- points -----
+    if loadPoints:
+        pointsList = loadPts(allPtsList)
+    else:
+        pointsList = initializePtList(allPtsList, percentLimit)
+    print len(pointsList)
+    if isCluster:
+        pointsList = clusterPts(allPoints, triList)
+        pointsList = set2list(pointsList)
+    resetPts(pointsList)
+    print "cluster points done"
+    generatePtCP(pointsList, allPoints, triList, ptLength)
+    print "generate cp for points done"
+    # ----- strokes -----
+    if isCluster:
+        clusterList = clusterStrokes(allPoints, triList)
+        adjustColor(trianglesList, triList)
+        strokesList = clusterPickStroke(clusterList, triList)
+    else:   # not cluster
+        strokesList = initializeStrokes(trianglesList, percentLimit)
+    print "cluster strokes done"
+    generateStroke(strokesList, triList, maxNumCP, moveSpeed)
+    minDist = computeMinDistance(strokesList)
+    strokesList = adjustStroke(strokesList)
+    print "generate cp for strokes done"
+    # saving pre-generate information
+    savePrepare(trianglesList, pointsList, strokesList)
+    print "saving done"
 for p in pointsList:
-#    p.resetSegmentIndex()
     originalPoints.append(p.copy())
-print "points done"
-# ----- strokes -----
-if isCluster:
-    clusterList = clusterStrokes(allPoints, triList)
-    adjustColor(trianglesList, triList)
-    strokesList = clusterPickStroke(clusterList, triList)
-else:   # not cluster
-    strokesList = initializeStrokes(trianglesList, percentLimit)
-generateStroke(strokesList, triList, maxNumCP, moveSpeed)
-minDist = computeMinDistance(strokesList)
-strokesList = adjustStroke(strokesList)
-print len(strokesList)
-for s in strokesList:
-    s.initializeSegmentIndex()
-    originalStrokes.append(s.copy())
 drawingList = pointsList
+for s in strokesList:
+    originalStrokes.append(s.copy())
 
 setup()
 dt = pyglet.clock.tick()    # setup clock
